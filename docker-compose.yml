@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  loadbalancer:
+    build: ./loadbalancer
+    container_name: whatsapp-lb
+    ports:
+      - "8080:8080"
+    restart: always
+
+  bot1:
+    build: ./bot
+    container_name: bot1
+    environment:
+      - BOT_ID=bot1
+    ports:
+      - "3001:3000"
+    restart: always
+
+  bot2:
+    build: ./bot
+    container_name: bot2
+    environment:
+      - BOT_ID=bot2
+    ports:
+      - "3002:3000"
+    restart: always
+
+  bot3:
+    build: ./bot
+    container_name: bot3
+    environment:
+      - BOT_ID=bot3
+    ports:
+      - "3003:3000"
+    restart: always
+
+  baileys-bot:
+    build: ./baileys-bot
+    container_name: baileys-bot
+    ports:
+      - "3004:3000"
+    restart: always
