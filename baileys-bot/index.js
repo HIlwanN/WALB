@@ -1,36 +1,85 @@
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const crypto = require('crypto');
+const makeWASocket = require('@whiskeysockets/baileys').default;
+const { useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const express = require('express');
+const QRCode = require('qrcode');
+const axios = require('axios');
+
 const app = express();
-const PORT = 3000;
+const port = 3000;
 
-app.use(express.json());
+let currentQR = '';
 
-let sock;
+async function startBot() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth');
 
-async function connectWA() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth');
-  sock = makeWASocket({ auth: state });
+  const sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: false,
+  });
+
+  sock.ev.on('connection.update', (update) => {
+    const { qr, connection } = update;
+
+    if (qr) {
+      console.log("QR updated");
+      currentQR = qr;
+    }
+
+    if (connection === 'open') {
+      console.log('✅ Bot terhubung ke WhatsApp');
+    }
+
+    if (connection === 'close') {
+      console.log('❌ Koneksi tertutup, mencoba ulang...');
+      startBot(); // Reconnect
+    }
+  });
 
   sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('connection.update', ({ connection }) => {
-    if (connection === 'open') console.log('✅ WhatsApp connected!');
+
+  // Handler balasan pesan otomatis
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type === 'notify') {
+      for (const msg of messages) {
+        if (!msg.key.fromMe && msg.message?.conversation) {
+          const sender = msg.key.remoteJid;
+          const text = msg.message.conversation;
+          console.log('Pesan masuk:', text, 'dari', sender);
+
+          // Kirim ke load balancer dan balas ke WhatsApp
+          try {
+            const response = await axios.post('http://whatsapp-lb:8080/forward', {
+              sender,
+              text
+            });
+            await sock.sendMessage(sender, { text: response.data.reply });
+          } catch (err) {
+            console.error('Gagal forward ke load balancer:', err.message);
+            await sock.sendMessage(sender, { text: 'Maaf, terjadi error pada sistem bot.' });
+          }
+        }
+      }
+    }
   });
 }
 
-connectWA();
+startBot();
 
-app.post('/send', async (req, res) => {
-  const { number, message } = req.body;
+// Serve QR code in browser
+app.get('/qr', async (req, res) => {
+  if (!currentQR) {
+    return res.send('QR belum tersedia atau sudah expired');
+  }
 
   try {
-    const jid = number + '@s.whatsapp.net';
-    await sock.sendMessage(jid, { text: message });
-    res.json({ status: 'Sent', to: number });
+    const qrImage = await QRCode.toDataURL(currentQR);
+    res.send(`<img src="${qrImage}" alt="Scan QR WhatsApp">`);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).send('Gagal generate QR');
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Baileys bot aktif di port ${PORT}`);
+app.listen(port, () => {
+  console.log(`✅ Server QR berjalan di http://localhost:${port}/qr`);
 });
