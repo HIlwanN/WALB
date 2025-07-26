@@ -1,48 +1,60 @@
 version: '3'
 services:
-  baileys-bot:
-    build: ./baileys-bot
-    container_name: baileys-bot
+  telegram-bot:
+    build: ./telegram-bot
+    container_name: telegram-bot
     ports:
       - "3000:3000"
     depends_on:
-      - whatsapp-lb
+      - tele-lb
     environment:
-      - LOADBALANCER_URL=http://whatsapp-lb:8080
+      - LOADBALANCER_URL=http://tele-lb:8080
+      - TELEGRAM_BOT_TOKEN=8496833085:AAGz-GazNxgOLQowhd8BE4xdN2hdmJNiu5U
 
-  whatsapp-lb:
-    build: ./whatsapp-lb
-    container_name: whatsapp-lb
+  tele-lb:
+    build: ./tele-lb
+    container_name: tele-lb
     ports:
       - "8080:8080"
     depends_on:
-      - bot-backend1
-      - bot-backend2
-      - bot-backend3
+      - bot-telebackend1
+      - bot-telebackend2
+      - bot-telebackend3
 
-  bot-backend1:
-    build: ./bot-backend1
-    container_name: bot-backend1
+  bot-telebackend1:
+    build: ./bot-telebackend1
+    container_name: bot-telebackend1
     environment:
       - PORT=3001
       - BOT_NAME=bot1
     ports:
       - "3001:3001"
 
-  bot-backend2:
-    build: ./bot-backend2
-    container_name: bot-backend2
+  bot-telebackend2:
+    build: ./bot-telebackend2
+    container_name: bot-telebackend2
     environment:
       - PORT=3002
       - BOT_NAME=bot2
     ports:
       - "3002:3002"
 
-  bot-backend3:
-    build: ./bot-backend3
-    container_name: bot-backend3
+  bot-telebackend3:
+    build: ./bot-telebackend3
+    container_name: bot-telebackend3
     environment:
       - PORT=3003
       - BOT_NAME=bot3
     ports:
       - "3003:3003"
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:
